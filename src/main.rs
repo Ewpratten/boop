@@ -1,7 +1,13 @@
 mod ping;
 
-use clap::{App, Arg, value_t};
-use std::{net::IpAddr, time::Duration};
+use clap::{value_t, App, Arg};
+use colored::Colorize;
+use indicatif::{ProgressBar, ProgressStyle};
+use nix;
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    time::Duration,
+};
 
 fn main() {
     let matches = App::new("boop")
@@ -33,12 +39,19 @@ fn main() {
     // Get data
     let host = matches.value_of("host").unwrap();
     let scan_network = matches.is_present("network_mode");
-    let timeout = Duration::from_secs_f64(value_t!(matches.value_of("timeout"), f64).unwrap_or(1.0));
+    let timeout =
+        Duration::from_secs_f64(value_t!(matches.value_of("timeout"), f64).unwrap_or(1.0));
+
+    // Ensure the user is root (raw sockets cannot be opened by regular users)
+    if !nix::unistd::getuid().is_root() {
+        println!("{}", "boop must be run as root".red());
+        return;
+    }
 
     // Parse out the host
     let host_ip_addr: IpAddr = match host.parse() {
         Ok(addr) => addr,
-        Err(e) => panic!(e)
+        Err(e) => panic!("{}", e),
     };
 
     // We can only do a net scan with v4 addresses
@@ -47,29 +60,85 @@ fn main() {
         return;
     }
 
+    // Set up a progress bar. This is only really used in network scan mode
+    let progress_bar = ProgressBar::new(255);
+    progress_bar.set_style(
+        ProgressStyle::default_bar()
+            .template("[{wide_bar:.blue/cyan}] [{eta} remaining]")
+            .progress_chars("#>-"),
+    );
+
     // Build a list of hosts to scan
-    let hosts_list = Vec::new(0);
+    let mut hosts_list: Vec<IpAddr> = Vec::new();
 
     if scan_network {
+        // Split the host into chunks
+        let host_chunks: Vec<_> = host.split(".").collect();
 
+        // Get the first three components of the address
+        let components = [
+            host_chunks[0].parse().unwrap(),
+            host_chunks[1].parse().unwrap(),
+            host_chunks[2].parse().unwrap(),
+        ];
+
+        // Push every host possible
+        for i in 1..255 {
+            hosts_list.push(Ipv4Addr::new(components[0], components[1], components[2], i).into());
+        }
+
+        println!(
+            "Scanning address range {}",
+            format!(
+                "{}.{}.{}.1-255",
+                components[0], components[1], components[2]
+            )
+            .blue()
+        )
     } else {
         hosts_list.push(host_ip_addr);
     }
 
     // Scan all hosts in the list
     for host in hosts_list {
-
         // Ping the host
         let result = ping::ping(&host, timeout);
 
-        // The printout behaviour changes based on scan vs probe modes
+        // The printout behavior changes based on scan vs probe modes
         if scan_network {
-            
-        } else {
+            // Handle logging the host status
+            if result.is_some() {
+                let result = result.unwrap();
+                if result.is_up {
+                    // Print the status
+                    progress_bar.println(&format!(
+                        "Host {} is up ({}ms)",
+                        host.to_string().blue(),
+                        result.latency.as_millis()
+                    ));
+                }
+            }
 
+            // Update the progress bar
+            progress_bar.inc(1);
+        } else {
+            if result.is_some() {
+                let result = result.unwrap();
+                if result.is_up {
+                    println!(
+                        "Host {} is up ({}ms)",
+                        host.to_string().blue(),
+                        result.latency.as_millis()
+                    );
+                } else {
+                    println!("Host {} is down", host.to_string().blue());
+                }
+            } else {
+                println!("Host {} is down", host.to_string().blue());
+            }
         }
-        
     }
 
-
+    // Finish the progress bar
+    progress_bar.finish_and_clear()
 }

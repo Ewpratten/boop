@@ -1,15 +1,14 @@
-use std::time;
-use oping::{Ping};
-use std::net::IpAddr;
 use colored::*;
+use oping::Ping;
+use std::net::IpAddr;
+use std::time;
 
 pub struct PingResult {
-    is_up: bool,
-    latency: time::Duration
+    pub is_up: bool,
+    pub latency: time::Duration,
 }
 
 pub fn ping(address: &IpAddr, timeout: time::Duration) -> Option<PingResult> {
-
     // Create an ICMP ping packet
     let mut packet = Ping::new();
 
@@ -21,19 +20,16 @@ pub fn ping(address: &IpAddr, timeout: time::Duration) -> Option<PingResult> {
 
     // Send the ping packet
     return match packet.send() {
-        Ok(mut result) => {
-            match result.next() {
-                Some(item) => Some(PingResult {
-                    is_up: item.dropped == 0,
-                    latency: time::Duration::from_millis(item.latency_ms as u64)
-                }),
-                None => None
-            }
+        Ok(mut result) => match result.next() {
+            Some(item) => Some(PingResult {
+                is_up: item.dropped == 0,
+                latency: time::Duration::from_millis(item.latency_ms as u64),
+            }),
+            None => None,
         },
         Err(_e) => {
             println!("{}", "Please run as ROOT".red());
             None
         }
-    }
-
+    };
 }
