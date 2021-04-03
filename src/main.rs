@@ -8,6 +8,7 @@ use std::{
     net::{IpAddr, Ipv4Addr},
     time::Duration,
 };
+use sudo;
 
 fn main() {
     let matches = App::new("boop")
@@ -44,8 +45,7 @@ fn main() {
 
     // Ensure the user is root (raw sockets cannot be opened by regular users)
     if !nix::unistd::getuid().is_root() {
-        println!("{}", "boop must be run as root".red());
-        return;
+        let _ = sudo::escalate_if_needed().unwrap();
     }
 
     // Parse out the host

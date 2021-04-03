@@ -1,5 +1,5 @@
 [package]
-name = "boop"
+name = "boop-ping"
 version = "0.1.0"
 authors = ["Evan Pratten <ewpratten@gmail.com>"]
 edition = "2018"
@@ -13,3 +13,8 @@ clap = "2.33.3"
 colored = "2.0.0"
 nix = "0.20.0"
 indicatif = "0.15.0"
+sudo = "0.6"
+
+[[bin]]
+name = "boop"
+path = "src/main.rs"
