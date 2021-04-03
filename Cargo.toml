@@ -6,6 +6,7 @@ edition = "2018"
 description = "An experimental ping tool"
 readme = "README.md"
 license-file = "LICENSE"
+repository = "https://github.com/ewpratten/boop"
 
 [dependencies]
 oping = "0.4.0"
